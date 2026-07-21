@@ -195,6 +195,7 @@ class MinecraftSpeedtestApp {
   async runSpeedTest() {
     this.isTesting = true;
     this.btnStart.disabled = true;
+    this.btnStart.classList.remove('mc-btn-pulse');
     this.btnStart.querySelector('.btn-text').textContent = 'TESTING IN PROGRESS...';
     this.testStatusBadge.textContent = 'TESTING';
     this.testStatusBadge.classList.add('testing');
@@ -248,14 +249,15 @@ class MinecraftSpeedtestApp {
     });
 
     this.valUpload.textContent = uploadSpeed.toFixed(2);
-    this.mainSpeedValue.textContent = downloadSpeed.toFixed(1);
-    this.gauge.setSpeed(downloadSpeed); // Return gauge to download result
-    this.updateXPBar(100, `LVL ${Math.floor(downloadSpeed)}`);
+    this.mainSpeedValue.textContent = uploadSpeed.toFixed(1);
+    this.gauge.setSpeed(uploadSpeed);
+    this.updateXPBar(100, `LVL ${Math.floor(downloadSpeed + uploadSpeed)}`);
 
     // STEP 4: FINISH & SAVE RESULTS
     this.isTesting = false;
     this.btnStart.disabled = false;
     this.btnStart.querySelector('.btn-text').textContent = 'RESTART SPEEDTEST';
+    this.btnStart.classList.add('mc-btn-pulse');
     this.testStatusBadge.textContent = 'COMPLETED';
     this.testStatusBadge.classList.remove('testing');
     this.currentPhaseLabel.textContent = 'BENCHMARK COMPLETED!';

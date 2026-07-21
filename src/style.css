@@ -440,6 +440,25 @@ body.biome-end {
   padding: 18px 32px;
 }
 
+.mc-btn-pulse {
+  animation: btn-glow-pulse 1.2s infinite alternate;
+}
+
+@keyframes btn-glow-pulse {
+  from {
+    box-shadow: 
+      inset -4px -4px 0px 0px #3b3b3b,
+      inset 4px 4px 0px 0px #aaaaaa,
+      0 0 5px rgba(255, 255, 85, 0.4);
+  }
+  to {
+    box-shadow: 
+      inset -4px -4px 0px 0px #3b3b3b,
+      inset 4px 4px 0px 0px #aaaaaa,
+      0 0 20px rgba(85, 255, 85, 0.9);
+  }
+}
+
 .action-controls {
   width: 100%;
   display: flex;

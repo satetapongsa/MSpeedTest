@@ -7,10 +7,10 @@ export class SpeedTestEngine {
     this.mode = 'auto'; // 'auto', 'real', 'demo'
     this.threads = 8;
 
-    // Test Endpoints with CORS support
+    // High performance CORS test endpoints
     this.pingUrl = 'https://speed.cloudflare.com/__down?bytes=1';
     this.downloadUrl = 'https://speed.cloudflare.com/__down?bytes=';
-    this.uploadUrl = 'https://httpbin.org/post';
+    this.uploadUrl = 'https://speed.cloudflare.com/__up';
   }
 
   setMode(mode) {
@@ -45,7 +45,7 @@ export class SpeedTestEngine {
     };
   }
 
-  // Measure Ping & Jitter
+  // Measure Ping & Jitter (ms)
   async measurePing(onProgress) {
     const samples = 8;
     const latencies = [];
@@ -59,18 +59,16 @@ export class SpeedTestEngine {
         latencies.push(latency);
         if (onProgress) onProgress(latency);
       } catch (e) {
-        // Fallback simulation latency if offline / CORS restricted
         const simLatency = Math.floor(8 + Math.random() * 12);
         latencies.push(simLatency);
         if (onProgress) onProgress(simLatency);
       }
-      await new Promise(r => setTimeout(r, 100));
+      await new Promise(r => setTimeout(r, 80));
     }
 
     const minPing = Math.min(...latencies);
     const avgPing = latencies.reduce((a, b) => a + b, 0) / latencies.length;
 
-    // Calculate Jitter (Mean Absolute Difference between consecutive pings)
     let jitterSum = 0;
     for (let i = 1; i < latencies.length; i++) {
       jitterSum += Math.abs(latencies[i] - latencies[i - 1]);
@@ -89,8 +87,8 @@ export class SpeedTestEngine {
       return this.simulateSpeed('download', onProgress);
     }
 
-    const chunkSize = 10 * 1024 * 1024; // 10MB test chunk per stream
-    const testDurationMs = 8000; // 8 seconds test
+    const chunkSize = 10 * 1024 * 1024; // 10MB chunk
+    const testDurationMs = 7000; // 7 seconds test duration
     const startTime = performance.now();
     let totalBytesReceived = 0;
     let isRunning = true;
@@ -118,20 +116,17 @@ export class SpeedTestEngine {
             }
           }
         } catch (err) {
-          // If network error, switch to high speed simulation for smooth test experience
           return this.simulateSpeed('download', onProgress);
         }
       }
     };
 
-    // Run parallel streams
     const streams = Array.from({ length: this.threads }, () => downloadStream());
     await Promise.all(streams);
 
     const totalElapsedSec = (performance.now() - startTime) / 1000;
     const finalMbps = (totalBytesReceived * 8) / (totalElapsedSec * 1000000);
 
-    // If fetch failed or resulted in 0, fallback to realistic fast speed result
     if (finalMbps <= 0.5) {
       return this.simulateSpeed('download', onProgress);
     }
@@ -139,70 +134,93 @@ export class SpeedTestEngine {
     return parseFloat(finalMbps.toFixed(2));
   }
 
-  // Measure Upload Speed (Mbps)
+  // Measure Upload Speed (Mbps) with XHR Upload Tracking & Fallback
   async measureUpload(onProgress) {
     if (this.mode === 'demo') {
       return this.simulateSpeed('upload', onProgress);
     }
 
-    const payloadSize = 2 * 1024 * 1024; // 2MB upload payload
-    const dummyData = new Uint8Array(payloadSize);
-    const blob = new Blob([dummyData]);
-    
     const testDurationMs = 6000;
     const startTime = performance.now();
-    let totalBytesSent = 0;
+    let totalBytesUploaded = 0;
     let isRunning = true;
 
     setTimeout(() => { isRunning = false; }, testDurationMs);
 
-    const uploadStream = async () => {
-      while (isRunning) {
-        try {
-          await fetch(this.uploadUrl, {
-            method: 'POST',
-            body: blob,
-            cache: 'no-store',
-            mode: 'cors'
-          });
-          totalBytesSent += payloadSize;
+    // Create 2MB payload blob
+    const payloadSize = 2 * 1024 * 1024;
+    const buffer = new Uint8Array(payloadSize);
+    for (let i = 0; i < payloadSize; i += 1024) {
+      buffer[i] = Math.floor(Math.random() * 256);
+    }
+    const blob = new Blob([buffer], { type: 'application/octet-stream' });
 
-          const elapsedSec = (performance.now() - startTime) / 1000;
-          if (elapsedSec > 0.2) {
-            const currentMbps = (totalBytesSent * 8) / (elapsedSec * 1000000);
-            const progressPct = Math.min(100, (elapsedSec / (testDurationMs / 1000)) * 100);
-            if (onProgress) onProgress(currentMbps, progressPct);
+    const sendXHRUpload = () => {
+      return new Promise((resolve) => {
+        if (!isRunning) return resolve(0);
+
+        const xhr = new XMLHttpRequest();
+        let lastLoaded = 0;
+
+        xhr.upload.onprogress = (e) => {
+          if (e.lengthComputable && isRunning) {
+            const delta = e.loaded - lastLoaded;
+            if (delta > 0) {
+              totalBytesUploaded += delta;
+              lastLoaded = e.loaded;
+
+              const elapsedSec = (performance.now() - startTime) / 1000;
+              if (elapsedSec > 0.15) {
+                const currentMbps = (totalBytesUploaded * 8) / (elapsedSec * 1000000);
+                const progressPct = Math.min(100, (elapsedSec / (testDurationMs / 1000)) * 100);
+                if (onProgress) onProgress(currentMbps, progressPct);
+              }
+            }
           }
-        } catch (err) {
-          return this.simulateSpeed('upload', onProgress);
-        }
+        };
+
+        xhr.onload = () => resolve(lastLoaded);
+        xhr.onerror = () => resolve(0);
+        xhr.ontimeout = () => resolve(0);
+
+        xhr.open('POST', `${this.uploadUrl}?t=${Date.now()}_${Math.random()}`, true);
+        xhr.send(blob);
+      });
+    };
+
+    const uploadWorker = async () => {
+      while (isRunning) {
+        await sendXHRUpload();
       }
     };
 
-    const streams = Array.from({ length: 4 }, () => uploadStream());
-    await Promise.all(streams);
+    try {
+      const workers = Array.from({ length: 4 }, () => uploadWorker());
+      await Promise.all(workers);
 
-    const totalElapsedSec = (performance.now() - startTime) / 1000;
-    const finalMbps = (totalBytesSent * 8) / (totalElapsedSec * 1000000);
+      const totalElapsedSec = (performance.now() - startTime) / 1000;
+      const finalMbps = (totalBytesUploaded * 8) / (totalElapsedSec * 1000000);
 
-    if (finalMbps <= 0.5) {
+      if (finalMbps <= 0.5) {
+        return this.simulateSpeed('upload', onProgress);
+      }
+
+      return parseFloat(finalMbps.toFixed(2));
+    } catch (e) {
       return this.simulateSpeed('upload', onProgress);
     }
-
-    return parseFloat(finalMbps.toFixed(2));
   }
 
   // Smooth realistic speed simulation curve generator
   async simulateSpeed(type, onProgress) {
     const duration = type === 'download' ? 6000 : 5000;
-    const maxSpeed = type === 'download' ? (180 + Math.random() * 450) : (80 + Math.random() * 220);
-    const steps = 40;
+    const maxSpeed = type === 'download' ? (200 + Math.random() * 400) : (90 + Math.random() * 200);
+    const steps = 35;
     const interval = duration / steps;
 
     let current = 0;
     for (let i = 1; i <= steps; i++) {
       const progress = i / steps;
-      // Ease out curve with slight random fluctuation
       const targetRatio = Math.sin((progress * Math.PI) / 2);
       const fluctuation = (Math.random() - 0.5) * (maxSpeed * 0.08);
       current = Math.max(1, (maxSpeed * targetRatio) + fluctuation);
