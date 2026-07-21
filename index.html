@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Minecraft Speedtest | วัดความเร็วอินเทอร์เน็ตสไตล์มายคราฟ</title>
+  
+  <!-- Minecraft & Pixel Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+  
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body class="biome-overworld">
+  <!-- Dynamic Particle Canvas Background -->
+  <canvas id="bg-canvas"></canvas>
+
+  <div id="app" class="mc-container">
+    <!-- Advancement Notification Toast Container -->
+    <div id="advancement-container" class="advancement-container"></div>
+
+    <!-- Header Section -->
+    <header class="mc-header">
+      <div class="mc-title-banner">
+        <div class="mc-logo-badge">
+          <span class="mc-icon redstone-lamp-icon"></span>
+        </div>
+        <h1 class="mc-title">MINECRAFT <span class="highlight-redstone">SPEEDTEST</span></h1>
+      </div>
+      
+      <!-- Server & Network Info Box -->
+      <div class="mc-box mc-info-box">
+        <div class="info-item">
+          <span class="info-label"><span class="icon-ip"></span> YOUR IP:</span>
+          <span id="user-ip" class="info-val">Fetching...</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label"><span class="icon-isp"></span> ISP:</span>
+          <span id="user-isp" class="info-val">Detecting Network...</span>
+        </div>
+        <div class="info-item">
+          <span class="info-label"><span class="icon-server"></span> SERVER:</span>
+          <span id="user-server" class="info-val">Cloudflare Edge (TH)</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main View: Speed Test Stage -->
+    <main id="view-speedtest" class="mc-view active">
+      <div class="speedtest-stage">
+        
+        <!-- Redstone Gauge & Canvas Visualizer -->
+        <div class="mc-box redstone-card">
+          <div class="card-header">
+            <span class="mc-box-title"><span class="icon-dust"></span> REDSTONE SPEEDOMETER</span>
+            <span id="test-status-badge" class="mc-badge">READY</span>
+          </div>
+
+          <div class="gauge-wrapper">
+            <canvas id="redstone-canvas" width="480" height="260"></canvas>
+            
+            <div class="speed-display-overlay">
+              <div id="main-speed-value" class="speed-number">0.0</div>
+              <div class="speed-unit">Mbps</div>
+              <div id="current-phase-label" class="phase-label">PRESS START TO BENCHMARK</div>
+            </div>
+          </div>
+
+          <!-- Live Progress Bar (Minecraft XP Bar style) -->
+          <div class="mc-xp-bar-container">
+            <div class="xp-bar-border">
+              <div id="xp-bar-fill" class="xp-bar-fill" style="width: 0%;"></div>
+            </div>
+            <div id="xp-level-text" class="xp-level-text">LVL 0</div>
+          </div>
+        </div>
+
+        <!-- Metrics Grid Cards -->
+        <div class="metrics-grid">
+          <!-- PING -->
+          <div class="mc-box metric-card" id="card-ping">
+            <div class="metric-icon-wrap sword-icon"></div>
+            <div class="metric-info">
+              <div class="metric-title">PING / LATENCY</div>
+              <div class="metric-value"><span id="val-ping">--</span> <small>ms</small></div>
+            </div>
+          </div>
+
+          <!-- JITTER -->
+          <div class="mc-box metric-card" id="card-jitter">
+            <div class="metric-icon-wrap repeater-icon"></div>
+            <div class="metric-info">
+              <div class="metric-title">JITTER</div>
+              <div class="metric-value"><span id="val-jitter">--</span> <small>ms</small></div>
+            </div>
+          </div>
+
+          <!-- DOWNLOAD -->
+          <div class="mc-box metric-card" id="card-download">
+            <div class="metric-icon-wrap down-arrow-icon"></div>
+            <div class="metric-info">
+              <div class="metric-title">DOWNLOAD SPEED</div>
+              <div class="metric-value"><span id="val-download">0.00</span> <small>Mbps</small></div>
+            </div>
+          </div>
+
+          <!-- UPLOAD -->
+          <div class="mc-box metric-card" id="card-upload">
+            <div class="metric-icon-wrap up-arrow-icon"></div>
+            <div class="metric-info">
+              <div class="metric-title">UPLOAD SPEED</div>
+              <div class="metric-value"><span id="val-upload">0.00</span> <small>Mbps</small></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Action Controls -->
+        <div class="action-controls">
+          <button id="btn-start" class="mc-btn mc-btn-large mc-btn-stone">
+            <span class="btn-text">START SPEEDTEST</span>
+          </button>
+        </div>
+
+      </div>
+    </main>
+
+    <!-- Chest Inventory Modal (History) -->
+    <div id="modal-history" class="mc-modal">
+      <div class="mc-modal-content mc-box chest-ui">
+        <div class="mc-modal-header">
+          <h2><span class="icon-chest"></span> SPEED LOG INVENTORY (CHEST)</h2>
+          <button class="mc-btn-close">&times;</button>
+        </div>
+        <div class="mc-modal-body">
+          <p class="chest-subtitle">Past benchmark results stored in chest slots:</p>
+          <div id="chest-grid" class="chest-grid">
+            <!-- Chest slots dynamically rendered -->
+          </div>
+          <div class="history-actions">
+            <button id="btn-clear-history" class="mc-btn mc-btn-red">CLEAR INVENTORY</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Biome Selector Modal -->
+    <div id="modal-biome" class="mc-modal">
+      <div class="mc-modal-content mc-box biome-ui">
+        <div class="mc-modal-header">
+          <h2><span class="icon-grass"></span> SELECT BIOME THEME</h2>
+          <button class="mc-btn-close">&times;</button>
+        </div>
+        <div class="mc-modal-body">
+          <div class="biome-options">
+            <button class="biome-card active" data-biome="overworld">
+              <div class="biome-preview biome-overworld-prev"></div>
+              <span>OVERWORLD DAY</span>
+            </button>
+            <button class="biome-card" data-biome="night">
+              <div class="biome-preview biome-night-prev"></div>
+              <span>OVERWORLD NIGHT</span>
+            </button>
+            <button class="biome-card" data-biome="nether">
+              <div class="biome-preview biome-nether-prev"></div>
+              <span>NETHER REALM</span>
+            </button>
+            <button class="biome-card" data-biome="end">
+              <div class="biome-preview biome-end-prev"></div>
+              <span>THE END VOID</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Settings / Crafting Modal -->
+    <div id="modal-settings" class="mc-modal">
+      <div class="mc-modal-content mc-box settings-ui">
+        <div class="mc-modal-header">
+          <h2><span class="icon-crafting"></span> BENCHMARK SETTINGS</h2>
+          <button class="mc-btn-close">&times;</button>
+        </div>
+        <div class="mc-modal-body">
+          <div class="setting-row">
+            <label for="setting-mode">Testing Engine Mode:</label>
+            <select id="setting-mode" class="mc-select">
+              <option value="auto">Auto Select (Fast Edge Endpoint)</option>
+              <option value="real">Strict Real CDN Fetch</option>
+              <option value="demo">High-Speed Simulation Demo</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label for="setting-threads">Parallel Streams:</label>
+            <select id="setting-threads" class="mc-select">
+              <option value="4">4 Streams (Standard)</option>
+              <option value="8" selected>8 Streams (Recommended)</option>
+              <option value="16">16 Streams (Heavy Duty)</option>
+            </select>
+          </div>
+          <div class="setting-row">
+            <label for="setting-audio">Sound Effects Volume:</label>
+            <input type="range" id="setting-audio" min="0" max="100" value="80" class="mc-slider" />
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Minecraft Hotbar Navigation at Bottom -->
+    <nav class="mc-hotbar-container">
+      <div class="mc-hotbar">
+        <div class="hotbar-slot active" data-target="speedtest" title="Speed Test">
+          <div class="hotbar-icon icon-pickaxe"></div>
+          <span class="hotbar-num">1</span>
+        </div>
+        <div class="hotbar-slot" data-action="open-history" title="Log Inventory">
+          <div class="hotbar-icon icon-chest-item"></div>
+          <span class="hotbar-num">2</span>
+        </div>
+        <div class="hotbar-slot" data-action="open-biome" title="Change Biome">
+          <div class="hotbar-icon icon-grass-item"></div>
+          <span class="hotbar-num">3</span>
+        </div>
+        <div class="hotbar-slot" id="slot-audio-toggle" data-action="toggle-audio" title="Mute/Unmute Audio">
+          <div class="hotbar-icon icon-noteblock-item"></div>
+          <span class="hotbar-num">4</span>
+        </div>
+        <div class="hotbar-slot" data-action="open-settings" title="Settings">
+          <div class="hotbar-icon icon-crafting-item"></div>
+          <span class="hotbar-num">5</span>
+        </div>
+      </div>
+    </nav>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
