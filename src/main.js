@@ -42,7 +42,7 @@ class MinecraftSpeedtestApp {
     this.userServer = document.getElementById('user-server');
   }
 
-  // Animated Minecraft Particle Background (Clouds, End Stars, Nether Ashes)
+  // Animated Minecraft Particle Background
   initBackgroundCanvas() {
     const bgCanvas = document.getElementById('bg-canvas');
     const ctx = bgCanvas.getContext('2d');
@@ -102,7 +102,7 @@ class MinecraftSpeedtestApp {
   }
 
   initEvents() {
-    // Start Speedtest Button
+    // Start / Restart Speedtest Button Listener
     this.btnStart.addEventListener('click', () => {
       soundFx.playClick();
       if (!this.isTesting) {
@@ -110,7 +110,7 @@ class MinecraftSpeedtestApp {
       }
     });
 
-    // Hotbar Slot Click Routing
+    // Hotbar Navigation Routing
     document.querySelectorAll('.hotbar-slot').forEach(slot => {
       slot.addEventListener('click', (e) => {
         soundFx.playClick();
@@ -191,8 +191,10 @@ class MinecraftSpeedtestApp {
     }
   }
 
-  // Core Speed Test Flow Sequence
+  // Core Sequential Speed Test Execution
   async runSpeedTest() {
+    if (this.isTesting) return;
+
     this.isTesting = true;
     this.btnStart.disabled = true;
     this.btnStart.classList.remove('mc-btn-pulse');
@@ -200,80 +202,96 @@ class MinecraftSpeedtestApp {
     this.testStatusBadge.textContent = 'TESTING';
     this.testStatusBadge.classList.add('testing');
 
-    // Reset Display metrics
+    // Reset Display metrics & Gauge
     this.valPing.textContent = '--';
     this.valJitter.textContent = '--';
     this.valDownload.textContent = '0.00';
     this.valUpload.textContent = '0.00';
+    this.mainSpeedValue.textContent = '0.0';
     this.gauge.setSpeed(0);
     this.updateXPBar(0, 'LVL 0');
 
     soundFx.playRedstonePulse();
 
-    // STEP 1: MEASURE LATENCY / PING
-    this.currentPhaseLabel.textContent = 'MEASURING REDSTONE PING & JITTER...';
-    const pingResults = await this.engine.measurePing((lat) => {
-      soundFx.playRedstonePulse();
-      this.valPing.textContent = Math.round(lat);
-    });
+    let downloadSpeed = 0;
+    let uploadSpeed = 0;
+    let pingResults = { ping: 0, jitter: 0 };
 
-    this.valPing.textContent = pingResults.ping;
-    this.valJitter.textContent = pingResults.jitter;
-    soundFx.playXpOrb();
-    this.updateXPBar(25, 'LVL 25');
+    try {
+      // PHASE 1: LATENCY & PING
+      this.currentPhaseLabel.textContent = '[1/3] MEASURING PING & JITTER...';
+      pingResults = await this.engine.measurePing((lat) => {
+        soundFx.playRedstonePulse();
+        this.valPing.textContent = Math.round(lat);
+      });
 
-    // STEP 2: MEASURE DOWNLOAD SPEED
-    this.currentPhaseLabel.textContent = 'TESTING DOWNLOAD SPEED...';
-    const downloadSpeed = await this.engine.measureDownload((mbps, pct) => {
-      this.valDownload.textContent = mbps.toFixed(2);
-      this.mainSpeedValue.textContent = mbps.toFixed(1);
-      this.gauge.setSpeed(mbps);
-      this.updateXPBar(25 + (pct * 0.4), `LVL ${Math.floor(mbps / 10)}`);
-      
-      if (Math.random() < 0.2) soundFx.playXpOrb();
-    });
+      this.valPing.textContent = pingResults.ping;
+      this.valJitter.textContent = pingResults.jitter;
+      soundFx.playXpOrb();
+      this.updateXPBar(20, 'LVL 20');
 
-    this.valDownload.textContent = downloadSpeed.toFixed(2);
-    this.mainSpeedValue.textContent = downloadSpeed.toFixed(1);
-    soundFx.playXpOrb();
+      await new Promise(r => setTimeout(r, 400)); // Pause between phases
 
-    // STEP 3: MEASURE UPLOAD SPEED
-    this.currentPhaseLabel.textContent = 'TESTING UPLOAD SPEED...';
-    const uploadSpeed = await this.engine.measureUpload((mbps, pct) => {
-      this.valUpload.textContent = mbps.toFixed(2);
-      this.mainSpeedValue.textContent = mbps.toFixed(1);
-      this.gauge.setSpeed(mbps);
-      this.updateXPBar(65 + (pct * 0.35), `LVL ${Math.floor(mbps / 5)}`);
+      // PHASE 2: DOWNLOAD SPEED
+      this.currentPhaseLabel.textContent = '[2/3] TESTING DOWNLOAD SPEED...';
+      downloadSpeed = await this.engine.measureDownload((mbps, pct) => {
+        this.valDownload.textContent = mbps.toFixed(2);
+        this.mainSpeedValue.textContent = mbps.toFixed(1);
+        this.gauge.setSpeed(mbps);
+        this.updateXPBar(20 + (pct * 0.4), `LVL ${Math.floor(mbps / 10)}`);
+        
+        if (Math.random() < 0.15) soundFx.playXpOrb();
+      });
 
-      if (Math.random() < 0.2) soundFx.playRedstonePulse();
-    });
+      this.valDownload.textContent = downloadSpeed.toFixed(2);
+      this.mainSpeedValue.textContent = downloadSpeed.toFixed(1);
+      soundFx.playXpOrb();
 
-    this.valUpload.textContent = uploadSpeed.toFixed(2);
-    this.mainSpeedValue.textContent = uploadSpeed.toFixed(1);
-    this.gauge.setSpeed(uploadSpeed);
-    this.updateXPBar(100, `LVL ${Math.floor(downloadSpeed + uploadSpeed)}`);
+      await new Promise(r => setTimeout(r, 400)); // Pause between phases
 
-    // STEP 4: FINISH & SAVE RESULTS
-    this.isTesting = false;
-    this.btnStart.disabled = false;
-    this.btnStart.querySelector('.btn-text').textContent = 'RESTART SPEEDTEST';
-    this.btnStart.classList.add('mc-btn-pulse');
-    this.testStatusBadge.textContent = 'COMPLETED';
-    this.testStatusBadge.classList.remove('testing');
-    this.currentPhaseLabel.textContent = 'BENCHMARK COMPLETED!';
+      // PHASE 3: UPLOAD SPEED
+      this.currentPhaseLabel.textContent = '[3/3] TESTING UPLOAD SPEED...';
+      uploadSpeed = await this.engine.measureUpload((mbps, pct) => {
+        this.valUpload.textContent = mbps.toFixed(2);
+        this.mainSpeedValue.textContent = mbps.toFixed(1);
+        this.gauge.setSpeed(mbps);
+        this.updateXPBar(60 + (pct * 0.4), `LVL ${Math.floor(mbps / 5)}`);
 
-    const finalResults = {
-      date: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
-      ping: pingResults.ping,
-      jitter: pingResults.jitter,
-      download: downloadSpeed,
-      upload: uploadSpeed
-    };
+        if (Math.random() < 0.15) soundFx.playRedstonePulse();
+      }, downloadSpeed);
 
-    // Play victory sound & check advancements
-    soundFx.playLevelUp();
-    this.advancements.checkAdvancements(finalResults);
-    this.saveHistory(finalResults);
+      this.valUpload.textContent = uploadSpeed.toFixed(2);
+      this.mainSpeedValue.textContent = downloadSpeed.toFixed(1); // Set display back to primary download speed
+      this.gauge.setSpeed(downloadSpeed);
+      this.updateXPBar(100, `LVL ${Math.floor(downloadSpeed)}`);
+
+      // FINALIZE & SAVE
+      this.currentPhaseLabel.textContent = 'BENCHMARK COMPLETED!';
+
+      const finalResults = {
+        date: new Date().toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' }),
+        ping: pingResults.ping,
+        jitter: pingResults.jitter,
+        download: downloadSpeed,
+        upload: uploadSpeed
+      };
+
+      soundFx.playLevelUp();
+      this.advancements.checkAdvancements(finalResults);
+      this.saveHistory(finalResults);
+
+    } catch (err) {
+      console.error('Error during speed test execution:', err);
+      this.currentPhaseLabel.textContent = 'TEST ERROR - TRY AGAIN';
+    } finally {
+      // ALWAYS RESET BUTTON & TESTING STATE REGARDLESS OF ERRORS
+      this.isTesting = false;
+      this.btnStart.disabled = false;
+      this.btnStart.querySelector('.btn-text').textContent = 'RESTART SPEEDTEST';
+      this.btnStart.classList.add('mc-btn-pulse');
+      this.testStatusBadge.textContent = 'READY';
+      this.testStatusBadge.classList.remove('testing');
+    }
   }
 
   updateXPBar(percent, levelText) {
@@ -307,7 +325,6 @@ class MinecraftSpeedtestApp {
     if (!grid) return;
     grid.innerHTML = '';
 
-    // Render 27 chest slots (3 rows x 9 columns)
     for (let i = 0; i < 27; i++) {
       const slot = document.createElement('div');
       const item = this.testHistory[i];
